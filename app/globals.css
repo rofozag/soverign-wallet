@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Fix 4: CSS @import removed — fonts are now handled by next/font in layout.tsx */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-void text-white font-body antialiased;
+  min-height: 100vh;
+}
+
+/* ── Custom Scrollbar ─────────────────────────────── */
+::-webkit-scrollbar        { width: 6px; }
+::-webkit-scrollbar-track  { @apply bg-surface; }
+::-webkit-scrollbar-thumb  { @apply bg-muted rounded-full; }
+::-webkit-scrollbar-thumb:hover { @apply bg-gold; }
+
+/* ── Input base ───────────────────────────────────── */
+input,
+textarea {
+  @apply w-full outline-none bg-surface border border-edge rounded-lg px-4 py-3
+         text-white placeholder:text-white/30 focus:border-gold transition-colors;
+}
+
+/* ── Utility classes ──────────────────────────────── */
+.card {
+  @apply bg-surface border border-edge rounded-xl p-6;
+}
+
+.badge {
+  @apply inline-flex items-center justify-center px-3 py-1 rounded-full
+         text-xs font-display font-bold tracking-wide;
+}
