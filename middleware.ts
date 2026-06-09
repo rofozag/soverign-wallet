@@ -12,12 +12,10 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll()
         },
-        setAll(cookiesToSet) {
-          // Write cookies to the request for downstream use
+        setAll(cookiesToSet: { name: string; value: string; options?: object }[]) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value)
           )
-          // Rebuild the response so cookies propagate to the browser
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
@@ -27,8 +25,6 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // IMPORTANT: do not add any logic between createServerClient and getUser()
-  // A stale session is refreshed here; removing this breaks auth.
   const {
     data: { user },
   } = await supabase.auth.getUser()
