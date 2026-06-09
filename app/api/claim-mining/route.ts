@@ -2,60 +2,127 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { CYCLE_SECONDS, TIERS } from '@/lib/constants'
 import type { TierKey } from '@/lib/constants'
+import type { Database } from '@/lib/supabase/database.types'
 
-export async function POST() {
-  const supabase = createClient()
+type Profile = Database['public']['Tables']['profiles']['Row']
 
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export async function POST(request: Request) {
+  try {
+    const supabase = await createClient()
 
-  const { data: profile, error: fetchError } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  if (fetchError || !profile) {
-    return NextResponse.json({ error: 'Profile not found' }, { status: 404 })
-  }
+    if (!user?.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
 
-  if (!profile.mining_start) {
-    return NextResponse.json({ error: 'Mining not active' }, { status: 400 })
-  }
+    // Fetch latest profile
+    const { data: profile, error: fetchError } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
 
-  // Validate that the cycle is complete.
-  // time_remaining holds the TOTAL seconds this cycle was initialised with
-  // (CYCLE_SECONDS on a fresh start, or a smaller value on resume).
-  // Elapsed is computed against the DB mining_start timestamp.
-  const elapsedSec  = Math.floor(
-    (Date.now() - new Date(profile.mining_start).getTime()) / 1000
-  )
-  const totalSec    = profile.time_remaining ?? CYCLE_SECONDS
-  const remainingSec = totalSec - elapsedSec
+    if (fetchError || !profile) {
+      return NextResponse.json(
+        { error: 'Profile not found' },
+        { status: 404 }
+      )
+    }
 
-  if (remainingSec > 0) {
+    const userProfile = profile as Profile
+
+    if (!userProfile.mining_start) {
+      return NextResponse.json(
+        { error: 'Mining not active' },
+        { status: 400 }
+      )
+    }
+
+    // Robust date parsing
+    const miningStartDate = new Date(userProfile.mining_start)
+    if (isNaN(miningStartDate.getTime())) {
+      return NextResponse.json(
+        { error: 'Invalid mining start timestamp' },
+        { status: 400 }
+      )
+    }
+
+    const elapsedSec = Math.floor(
+      (Date.now() - miningStartDate.getTime()) / 1000
+    )
+
+    const totalSec = Number(userProfile.time_remaining ?? CYCLE_SECONDS)
+
+    if (isNaN(totalSec) || totalSec <= 0) {
+      return NextResponse.json(
+        { error: 'Invalid cycle duration' },
+        { status: 400 }
+      )
+    }
+
+    const remainingSec = totalSec - elapsedSec
+
+    if (remainingSec > 0) {
+      return NextResponse.json(
+        {
+          error: `Cycle not complete yet. ${Math.ceil(remainingSec)}s remaining.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    const tier = userProfile.tier as TierKey
+
+    const tierConfig = TIERS[tier]
+    if (!tierConfig?.rate) {
+      return NextResponse.json(
+        { error: 'Invalid tier configuration' },
+        { status: 400 }
+      )
+    }
+
+    const reward = tierConfig.rate
+    const currentBalance = Number(userProfile.balance ?? 0)
+    const newBalance = currentBalance + reward
+
+    const updateData = {
+      balance: newBalance,
+      mining_start: null,
+      time_remaining: null,
+    }
+
+    // Final update - could be improved with a DB function / transaction for atomicity
+    const { error: updateError } = await (supabase as any)
+      .from('profiles')
+      .update(updateData)
+      .eq('id', user.id)
+      // Optional: add a safety check if you want extra protection against concurrent claims
+      // .eq('mining_start', userProfile.mining_start) // but timestamps can be tricky
+
+    if (updateError) {
+      console.error('Update error:', updateError) // For server logs
+      return NextResponse.json(
+        { error: 'Failed to claim reward' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({
+      success: true,
+      reward,
+      newBalance,
+    })
+  } catch (err) {
+    console.error('Claim reward error:', err)
     return NextResponse.json(
-      { error: `Cycle not complete yet. ${Math.ceil(remainingSec)}s remaining.` },
-      { status: 400 }
+      { error: 'Internal server error' },
+      { status: 500 }
     )
   }
-
-  const tier       = profile.tier as TierKey
-  const reward     = TIERS[tier].rate
-  const newBalance = Number(profile.balance) + reward
-
-  const { error: updateError } = await supabase
-    .from('profiles')
-    .update({
-      balance:        newBalance,
-      mining_start:   null,
-      time_remaining: null,    // Reset — ready for a fresh cycle
-    })
-    .eq('id', user.id)
-
-  if (updateError) {
-    return NextResponse.json({ error: 'Failed to claim reward' }, { status: 500 })
-  }
-
-  return NextResponse.json({ success: true, reward, newBalance })
 }

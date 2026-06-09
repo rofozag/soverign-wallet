@@ -9,7 +9,10 @@ import { TIERS } from '@/lib/constants'
 import TierBadge from '@/components/TierBadge'
 import ReferralCard from '@/components/ReferralCard'
 import Nav from '@/components/Nav'
+import {Database} from '@/lib/supabase/database.types'
 
+type Withdrawal=
+Database['public']['Tables']['withdrawals']['Row']
 export default function AccountPage() {
   const router   = useRouter()
   const supabase = createClient()
@@ -19,23 +22,27 @@ export default function AccountPage() {
     if (!profile) router.replace('/auth')
   }, [profile, router])
 
-  const { data: withdrawals, isLoading } = useQuery({
-    queryKey: ['withdrawals'],
-    queryFn: async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
+  const { data: withdrawals = [], isLoading } = useQuery<Withdrawal[]>({
+  queryKey: ['withdrawals'],
+  queryFn: async () => {
+    const { data: { user } } = await supabase.auth.getUser()
 
-      const { data, error } = await supabase
-        .from('withdrawals')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
+    if (!user) {
+      throw new Error('Not authenticated')
+    }
 
-      if (error) throw error
-      return data
-    },
-    enabled: !!profile,
-  })
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (error) throw error
+
+    return data ?? []
+  },
+  enabled: !!profile,
+})
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()

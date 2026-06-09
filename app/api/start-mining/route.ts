@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { CYCLE_SECONDS } from '@/lib/constants'
+import type { Database } from '@/lib/supabase/database.types'
 
 export async function POST() {
   const supabase = createClient()
@@ -8,7 +9,7 @@ export async function POST() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { data: profile, error: fetchError } = await supabase
+  const { data: profile, error: fetchError } = await (supabase as any)
     .from('profiles')
     .select('mining_start, time_remaining')
     .eq('id', user.id)
@@ -24,7 +25,7 @@ export async function POST() {
 
   const now = new Date().toISOString()
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await (supabase as any)
     .from('profiles')
     .update({
       mining_start:   now,

@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 import { MIN_WITHDRAW } from '@/lib/constants'
+import type { Database } from '@/lib/supabase/database.types'
+
+type Profile = Database['public']['Tables']['profiles']['Row']
 
 export async function POST(req: NextRequest) {
   const supabase = createClient()
@@ -27,7 +30,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 })
   }
 
-  const { data: profile, error: fetchError } = await supabase
+  const { data: profile, error: fetchError } = await (supabase as any)
     .from('profiles')
     .select('*')
     .eq('id', user.id)
@@ -53,7 +56,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { error: insertError } = await supabase
+  const { error: insertError } = await (supabase as any)
     .from('withdrawals')
     .insert({
       user_id:    user.id,
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to create withdrawal request' }, { status: 500 })
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await (supabase as any)
     .from('profiles')
     .update({ balance: Number(profile.balance) - MIN_WITHDRAW })
     .eq('id', user.id)

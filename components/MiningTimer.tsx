@@ -137,10 +137,10 @@ export default function MiningTimer() {
       // keepalive: true ensures this fetch completes even when the
       // tab is closing or the browser is navigating away.
       try {
-        const { data: { user } } = await supabase.auth.getUser()
+        const { data: { user } } = await supabase.auth.getUser ()
         if (!user) return
 
-        await supabase
+        await (supabase as any)
           .from('profiles')
           .update({
             mining_start:   null,
