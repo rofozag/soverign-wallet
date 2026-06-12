@@ -12,7 +12,7 @@ export default function WithdrawPage() {
   const router      = useRouter()
   const queryClient = useQueryClient()
   const supabase    = createClient()
-  const { profile, setProfile } = useStore()
+  const { profile, setProfile, updateBalance } = useStore()
 
   const [step, setStep]             = useState<'code' | 'details'>('code')
   const [code, setCode]             = useState('')
@@ -99,6 +99,8 @@ export default function WithdrawPage() {
       if (!res.ok) throw new Error(data.error || 'Withdrawal request failed')
 
       // Invalidate so dashboard re-fetches updated balance
+      // Immediately update Zustand balance so dashboard reflects it right away
+      updateBalance(Number(profile!.balance) - MIN_WITHDRAW)
       queryClient.invalidateQueries({ queryKey: ['profile'] })
       queryClient.invalidateQueries({ queryKey: ['withdrawals'] })
 
@@ -275,3 +277,4 @@ export default function WithdrawPage() {
     </div>
   )
 }
+
